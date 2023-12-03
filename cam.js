@@ -11,7 +11,7 @@ let intermediate = null;
 let info = null;
 
 async function opencvIsReady() {
-    console.log('OpenCV.js is ready');    
+    console.log('OpenCV.js is ready');
 
     info = document.getElementById('info');
 
@@ -32,7 +32,7 @@ async function startCamera() {
         audio: false,
     };
 
-    stream = await navigator.mediaDevices.getUserMedia( constraints);
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
 
     video = document.querySelector("video");
     video.srcObject = stream;
@@ -58,8 +58,8 @@ async function getCamerasWithCapabilities() {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const cameras = devices.filter(device => device.kind === 'videoinput');
         const camerInfos = [];
-        
-        for(let i = 0; i < cameras.length; i++) {
+
+        for (let i = 0; i < cameras.length; i++) {
             const camera = cameras[i];
 
             const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: camera.deviceId } });
@@ -77,14 +77,14 @@ async function getCamerasWithCapabilities() {
     } catch (error) {
         console.error(error);
         return [];
-    }    
+    }
 }
 
 function getBestCamera(cameras) {
     // sort cameras by facingMode. environment is prefered. Then sort by resolution (highest first) and get the id of the first camera
     const camera = cameras.sort((a, b) => {
-        if(a.facingMode === 'environment') return -1;
-        if(b.facingMode === 'environment') return 1;
+        if (a.facingMode === 'environment') return -1;
+        if (b.facingMode === 'environment') return 1;
         return b.width - a.width;
     })[0];
     return camera;
@@ -110,17 +110,17 @@ function stopVideoProcessing() {
     if (intermediate != null && !intermediate.isDeleted()) intermediate.delete();
 }
 
-function processVideo() {    
+function processVideo() {
     vc.read(src);
 
     let result = zoomIntoMatCenter(src);
     //result = contours(result, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
     //result = contours(result, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-        
+
     result = detectLShape(result);
 
     cv.imshow("canvasOutput", result);
-    
+
     requestAnimationFrame(processVideo);
 }
 
@@ -216,7 +216,7 @@ function detectLShape(src) {
         cv.line(src, start, end, [0, 255, 0, 255], 20);
     }
 
-    
+
 
     // Calculate the width and height of each angle group
     let angleGroupDimensions = [];
@@ -232,7 +232,7 @@ function detectLShape(src) {
         try {
             for (let j = 0; j < angleGroup.length; j++) {
                 let line = angleGroup[j];
-    
+
                 xMin = Math.min(xMin, line.start.x, line.end.x);
                 yMin = Math.min(yMin, line.start.y, line.end.y);
                 xMax = Math.max(xMax, line.start.x, line.end.x);
@@ -241,7 +241,7 @@ function detectLShape(src) {
         } catch (error) {
             let xxx = angleGroup;
         }
-        
+
 
         // Calculate the width and height of the bounding box
         let width = xMax - xMin;
@@ -249,9 +249,25 @@ function detectLShape(src) {
 
         // Add the dimensions to the angle group dimensions array
         const isBigEnough = width > 10 && height > 10 && width * height > 50;
-        const isSquare = Math.abs(width - height) < 200;        
+        //const isSquare = Math.abs(width - height) < 200;        
+        const isSquare = width / height > 0.7 && width / height < 1.7;
         if (isBigEnough && isSquare) {
-            angleGroupDimensions.push({ x: xMin, y: yMin, width: width, height: height });
+
+            // expand the rectangle by 25% in each direction
+            const expandBy = 0.25 * Math.max(width, height);
+
+            // limit the rectangle to the image size
+            xMin = Math.max(0, xMin - expandBy);
+            yMin = Math.max(0, yMin - expandBy);
+            width = Math.min(width + expandBy * 2, src.cols - xMin);
+            height = Math.min(height + expandBy * 2, src.rows - yMin);        
+
+            angleGroupDimensions.push({
+                x: xMin,
+                y: yMin,
+                width: width,
+                height: height
+            });
         }
     }
 
@@ -262,13 +278,26 @@ function detectLShape(src) {
         let point1 = new cv.Point(angleGroupDimension.x, angleGroupDimension.y);
         let point2 = new cv.Point(angleGroupDimension.x + angleGroupDimension.width, angleGroupDimension.y + angleGroupDimension.height);
         cv.rectangle(src, point1, point2, [255, 0, 0, 255], 20);
+
+        // Crop the angle group from the source image
+        let rect = new cv.Rect(angleGroupDimension.x, angleGroupDimension.y, angleGroupDimension.width, angleGroupDimension.height);
+        let cropped = src.roi(rect);
+
+        // paint the cropped image to the canvas with id "canvasOutputCode"
+        cv.imshow("canvasOutputCode", cropped);
+
+        // read the code
+        //readCode(cropped);
+
+        // Clean up the cropped Mat object
+        cropped.delete();
+
+        
     }
 
 
+    
 
-    // Placeholder for detecting perpendicular lines (L-shape)
-    // This requires more complex logic to analyze line angles and intersections
-    // ...
 
     // Cleanup
     gray.delete();
@@ -278,9 +307,21 @@ function detectLShape(src) {
     return src;
 }
 
-// Usage
-// Assuming 'src' is your source image
-detectLShape(src);
+
+async function readCode(mat) {
+    
+    // Create in memory canvas
+    const canvas = document.createElement('canvas');
+    
+    cv.imshow("canvasOutputCode", mat);
+
+    //const codeReader = new ZXingBrowser.BrowserDatamatrixCodeReader();    
+    //const result = await codeReader.decodeFromCanvas(canvas);
+}
+
+
+
+
 
 
 
@@ -322,13 +363,13 @@ function contoursXX(src, mode, method) {
         let epsilon = 0.02 * cv.arcLength(contour, true);
         let approx = new cv.Mat();
         cv.approxPolyDP(contour, approx, epsilon, true);
-    
+
         if (approx.rows === 4) {
             let contourArea = cv.contourArea(contour);
             let boundingRect = cv.boundingRect(contour);
             let width = boundingRect.width;
             let height = boundingRect.height;
-    
+
             if (contourArea > areaThreshold && width > minRectWidth && height > minRectHeight) {
                 let colorContour = new cv.Scalar(255, 0, 0); // Red color for contour
                 cv.drawContours(src, contours, i, colorContour, 5, cv.LINE_8, hierarchy);
@@ -340,9 +381,9 @@ function contoursXX(src, mode, method) {
                 cv.rectangle(src, point1, point2, colorRect, 7, cv.LINE_AA, 0);
 
                 rects++;
-            }            
+            }
         }
-    
+
         approx.delete();
     }
 
@@ -381,7 +422,7 @@ function contours(src, mode, method) {
 
     for (let i = 0; i < contours.size(); ++i) {
         let contour = contours.get(i);
-        
+
         // skip small contours
         let contourArea = cv.contourArea(contour);
         if (contourArea < 100) continue;
@@ -394,13 +435,13 @@ function contours(src, mode, method) {
         let epsilon = 0.02 * cv.arcLength(contour, true);
         let approx = new cv.Mat();
         cv.approxPolyDP(contour, approx, epsilon, true);
-    
+
         // Only consider contours with 4 edges
         if (approx.rows === 4) {
             let contourArea = cv.contourArea(contour);
             let boundingRect = cv.boundingRect(contour);
-    
-            if (contourArea > areaThreshold && boundingRect.width > minRectLength && boundingRect.height > minRectLength) {                
+
+            if (contourArea > areaThreshold && boundingRect.width > minRectLength && boundingRect.height > minRectLength) {
 
                 // Draw the bounding rectangle
                 let colorRect = new cv.Scalar(0, 255, 0, 255); // Green color for bounding rectangle
@@ -409,9 +450,9 @@ function contours(src, mode, method) {
                 cv.rectangle(src, point1, point2, colorRect, 40, cv.LINE_8, 0);
 
                 rects++;
-            }            
+            }
         }
-    
+
         approx.delete();
     }
 
@@ -425,9 +466,9 @@ function contours(src, mode, method) {
     // cv.imshow("canvasOutput", testImage);
 
     // testImage.delete();
-    
+
     // Check the output of testImage
-    
+
 
 
     // Cleanup: delete all created Mats
