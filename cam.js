@@ -11,6 +11,8 @@ let intermediate = null;
 let info = null;
 let canvasOutputCode = null;
 let codeFound = false;
+let debugEdges = false;
+let debugRects = false;
 
 async function opencvIsReady() {
     console.log('OpenCV.js is ready');
@@ -219,7 +221,8 @@ function detectLShape(src) {
         angleGroups[angleGroup].push({ start: start, end: end });
 
         // Draw the green lines for edged visualization
-        // cv.line(src, start, end, [0, 255, 0, 255], 20);
+        if (debugEdges)
+            cv.line(src, start, end, [0, 255, 0, 255], 20);
     }
 
 
@@ -281,22 +284,37 @@ function detectLShape(src) {
 
     // draw a rectangle around each angle group
     for (const angleGroupDimension of angleGroupDimensions) {
-        let point1 = new cv.Point(angleGroupDimension.x, angleGroupDimension.y);
-        let point2 = new cv.Point(angleGroupDimension.x + angleGroupDimension.width, angleGroupDimension.y + angleGroupDimension.height);
-        cv.rectangle(src, point1, point2, [255, 0, 0, 255], 20);
+
+        if (debugRects) {
+            let point1 = new cv.Point(angleGroupDimension.x, angleGroupDimension.y);
+            let point2 = new cv.Point(angleGroupDimension.x + angleGroupDimension.width, angleGroupDimension.y + angleGroupDimension.height);
+            cv.rectangle(src, point1, point2, [255, 0, 0, 255], 20);
+        }
 
         // Crop the angle group from the source image
         let rect = new cv.Rect(angleGroupDimension.x, angleGroupDimension.y, angleGroupDimension.width, angleGroupDimension.height);
         let cropped = src.roi(rect);
 
+        let intermediate = cropped.clone();
+    // Initialize dstC1 and dstC4 locally
+    let dstC1 = new cv.Mat(height, width, cv.CV_8UC1);
+    let dstC4 = new cv.Mat(height, width, cv.CV_8UC4);
+
+    // Convert to grayscale and apply threshold
+    cv.cvtColor(intermediate, dstC1, cv.COLOR_RGBA2GRAY);
+    //cv.threshold(dstC1, dstC4, 120, 200, cv.THRESH_BINARY);
+    let adaptiveBlockSize = 333;
+    cv.adaptiveThreshold(dstC1, dstC4, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, Number(adaptiveBlockSize), 2);
+
         // paint the cropped image to the canvas with id "canvasOutputCode"
-        cv.imshow("canvasOutputCode", cropped);
+        cv.imshow("canvasOutputCode", dstC4);
 
         // read the code
         readCode(cropped);
 
         // Clean up the cropped Mat object
-        cropped.delete();        
+        cropped.delete();            
+        intermediate.delete();
     }
 
     // Cleanup
