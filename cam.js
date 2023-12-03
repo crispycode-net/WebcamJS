@@ -9,11 +9,14 @@ let dstC3 = null;
 let dstC4 = null;
 let intermediate = null;
 let info = null;
+let canvasOutputCode = null;
+let codeFound = false;
 
 async function opencvIsReady() {
     console.log('OpenCV.js is ready');
 
     info = document.getElementById('info');
+    canvasOutputCode = document.getElementById('canvasOutputCode');
 
     await startCamera();
 }
@@ -111,6 +114,9 @@ function stopVideoProcessing() {
 }
 
 function processVideo() {
+
+    if (codeFound) return;
+
     vc.read(src);
 
     let result = zoomIntoMatCenter(src);
@@ -212,8 +218,8 @@ function detectLShape(src) {
         // Add the line to the angle group array
         angleGroups[angleGroup].push({ start: start, end: end });
 
-        // Draw the line for visualization
-        cv.line(src, start, end, [0, 255, 0, 255], 20);
+        // Draw the green lines for edged visualization
+        // cv.line(src, start, end, [0, 255, 0, 255], 20);
     }
 
 
@@ -271,7 +277,7 @@ function detectLShape(src) {
         }
     }
 
-    info.innerHTML = `Total square angle groups found: ${angleGroupDimensions.length}`;
+    //info.innerHTML = `Total square angle groups found: ${angleGroupDimensions.length}`;
 
     // draw a rectangle around each angle group
     for (const angleGroupDimension of angleGroupDimensions) {
@@ -287,17 +293,11 @@ function detectLShape(src) {
         cv.imshow("canvasOutputCode", cropped);
 
         // read the code
-        //readCode(cropped);
+        readCode(cropped);
 
         // Clean up the cropped Mat object
-        cropped.delete();
-
-        
+        cropped.delete();        
     }
-
-
-    
-
 
     // Cleanup
     gray.delete();
@@ -308,15 +308,15 @@ function detectLShape(src) {
 }
 
 
-async function readCode(mat) {
-    
-    // Create in memory canvas
-    const canvas = document.createElement('canvas');
-    
-    cv.imshow("canvasOutputCode", mat);
+async function readCode(mat) {    
 
-    //const codeReader = new ZXingBrowser.BrowserDatamatrixCodeReader();    
-    //const result = await codeReader.decodeFromCanvas(canvas);
+    const codeReader = new ZXingBrowser.BrowserDatamatrixCodeReader();    
+    const result = await codeReader.decodeFromCanvas(canvasOutputCode);
+
+    if (result) {
+        codeFound = true;
+        info.innerHTML = `Code: ${result.text}`;
+    }
 }
 
 
@@ -387,7 +387,7 @@ function contoursXX(src, mode, method) {
         approx.delete();
     }
 
-    info.innerHTML = `Total contours found: ${contours.size()} Rects: ${rects}`;
+    //info.innerHTML = `Total contours found: ${contours.size()} Rects: ${rects}`;
 
 
 
@@ -456,7 +456,7 @@ function contours(src, mode, method) {
         approx.delete();
     }
 
-    info.innerHTML = `Non small contours found: ${nonSmallContours} Rects: ${rects}`;
+    //info.innerHTML = `Non small contours found: ${nonSmallContours} Rects: ${rects}`;
 
     // let testImage = new cv.Mat.zeros(height, width, cv.CV_8UC3);
     // let testColor = new cv.Scalar(0, 255, 0); // White color
