@@ -238,8 +238,8 @@ function contours(src, mode, method) {
     let intermediate = src.clone();
 
     // Initialize dstC1 and dstC4 locally
-    let dstC1 = new cv.Mat();
-    let dstC4 = new cv.Mat();
+    let dstC1 = new cv.Mat(height, width, cv.CV_8UC1);
+    let dstC4 = new cv.Mat(height, width, cv.CV_8UC4);
 
     // Convert to grayscale and apply threshold
     cv.cvtColor(intermediate, dstC1, cv.COLOR_RGBA2GRAY);
@@ -248,8 +248,6 @@ function contours(src, mode, method) {
     let contours = new cv.MatVector();
     let hierarchy = new cv.Mat();
     cv.findContours(dstC4, contours, hierarchy, Number(mode), Number(method), { x: 0, y: 0 });
-    dstC3.delete();
-    dstC3 = cv.Mat.ones(height, width, cv.CV_8UC3);
 
     let rects = 0;
     let areaThreshold = 1000;
@@ -262,22 +260,21 @@ function contours(src, mode, method) {
         let epsilon = 0.02 * cv.arcLength(contour, true);
         let approx = new cv.Mat();
         cv.approxPolyDP(contour, approx, epsilon, true);
+
+        let colorContour = new cv.Scalar(0, 0, 255, 255); // Red color for contour
+        cv.drawContours(src, contours, i, colorContour, 10, cv.LINE_8, hierarchy);
     
         if (approx.rows === 4) {
             let contourArea = cv.contourArea(contour);
             let boundingRect = cv.boundingRect(contour);
-            let width = boundingRect.width;
-            let height = boundingRect.height;
     
-            if (contourArea > areaThreshold && width > minRectWidth && height > minRectHeight) {
-                let colorContour = new cv.Scalar(255, 0, 0); // Red color for contour
-                cv.drawContours(src, contours, i, colorContour, 2, cv.LINE_8, hierarchy);
+            if (contourArea > areaThreshold && boundingRect.width > minRectWidth && boundingRect.height > minRectHeight) {                
 
                 // Draw the bounding rectangle
-                let colorRect = new cv.Scalar(0, 255, 0); // Green color for bounding rectangle
+                let colorRect = new cv.Scalar(0, 255, 0, 255); // Green color for bounding rectangle
                 let point1 = new cv.Point(boundingRect.x, boundingRect.y);
                 let point2 = new cv.Point(boundingRect.x + boundingRect.width, boundingRect.y + boundingRect.height);
-                cv.rectangle(src, point1, point2, colorRect, 2, cv.LINE_AA, 0);
+                cv.rectangle(src, point1, point2, colorRect, 40, cv.LINE_8, 0);
 
                 rects++;
             }            
@@ -288,7 +285,17 @@ function contours(src, mode, method) {
 
     info.innerHTML = `Total contours found: ${contours.size()} Rects: ${rects}`;
 
+    // let testImage = new cv.Mat.zeros(height, width, cv.CV_8UC3);
+    // let testColor = new cv.Scalar(0, 255, 0); // White color
+    // let testPoint1 = new cv.Point(10, 10);
+    // let testPoint2 = new cv.Point(100, 100);
+    // cv.rectangle(testImage, testPoint1, testPoint2, testColor, 40, cv.LINE_8, 0);
+    // cv.imshow("canvasOutput", testImage);
 
+    // testImage.delete();
+    
+    // Check the output of testImage
+    
 
 
     // Cleanup: delete all created Mats
