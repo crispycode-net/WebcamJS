@@ -115,8 +115,10 @@ function processVideo() {
 
     let result = zoomIntoMatCenter(src);
     //result = contours(result, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-    result = contours(result, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+    //result = contours(result, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
         
+    result = detectLShape(result);
+
     cv.imshow("canvasOutput", result);
     
     requestAnimationFrame(processVideo);
@@ -163,6 +165,126 @@ function zoomIntoMatCenter(mat) {
     // Return the zoomed image stored in dstC4
     return dstC4;
 }
+
+function detectLShape(src) {
+    if (!src) return src;
+
+    // Convert to Grayscale
+    let gray = new cv.Mat();
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+
+    // Apply Gaussian Blur
+    cv.GaussianBlur(gray, gray, new cv.Size(3, 3), 0, 0, cv.BORDER_DEFAULT);
+
+    // Edge Detection
+    let edges = new cv.Mat();
+    cv.Canny(gray, edges, 30, 90, 3); // Adjust these values as needed
+
+    // Line Detection
+    let lines = new cv.Mat();
+    cv.HoughLinesP(edges, lines, 1, Math.PI / 180, 50, 30, 10);
+
+    let angleGroups = [];
+
+    // Loop through each line
+    for (let i = 0; i < lines.rows; ++i) {
+        let start = new cv.Point(lines.data32S[i * 4], lines.data32S[i * 4 + 1]);
+        let end = new cv.Point(lines.data32S[i * 4 + 2], lines.data32S[i * 4 + 3]);
+
+        // // Calculate the line length
+        // let length = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
+
+        // // Skip lines that are too short
+        // if (length < 100) continue;
+
+        // Calculate the line angle
+        let angle = Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI;
+
+        // Clustering lines based on angle
+        let angleThreshold = 3; // Adjust this value as needed
+        let angleGroup = Math.round(angle / angleThreshold);
+
+        // Initialize the angle group array if not yet done
+        if (!angleGroups[angleGroup]) {
+            angleGroups[angleGroup] = [];
+        }
+
+        // Add the line to the angle group array
+        angleGroups[angleGroup].push({ start: start, end: end });
+
+        // Draw the line for visualization
+        cv.line(src, start, end, [0, 255, 0, 255], 20);
+    }
+
+    
+
+    // Calculate the width and height of each angle group
+    let angleGroupDimensions = [];
+    for (const angleGroup of angleGroups) {
+        // Calculate the bounding box for the angle group
+        let xMin = Number.MAX_VALUE;
+        let yMin = Number.MAX_VALUE;
+        let xMax = Number.MIN_VALUE;
+        let yMax = Number.MIN_VALUE;
+
+        if (!angleGroup || !angleGroup.length || angleGroup.length < 5) continue;
+
+        try {
+            for (let j = 0; j < angleGroup.length; j++) {
+                let line = angleGroup[j];
+    
+                xMin = Math.min(xMin, line.start.x, line.end.x);
+                yMin = Math.min(yMin, line.start.y, line.end.y);
+                xMax = Math.max(xMax, line.start.x, line.end.x);
+                yMax = Math.max(yMax, line.start.y, line.end.y);
+            }
+        } catch (error) {
+            let xxx = angleGroup;
+        }
+        
+
+        // Calculate the width and height of the bounding box
+        let width = xMax - xMin;
+        let height = yMax - yMin;
+
+        // Add the dimensions to the angle group dimensions array
+        const isBigEnough = width > 10 && height > 10 && width * height > 50;
+        const isSquare = Math.abs(width - height) < 200;        
+        if (isBigEnough && isSquare) {
+            angleGroupDimensions.push({ x: xMin, y: yMin, width: width, height: height });
+        }
+    }
+
+    info.innerHTML = `Total square angle groups found: ${angleGroupDimensions.length}`;
+
+    // draw a rectangle around each angle group
+    for (const angleGroupDimension of angleGroupDimensions) {
+        let point1 = new cv.Point(angleGroupDimension.x, angleGroupDimension.y);
+        let point2 = new cv.Point(angleGroupDimension.x + angleGroupDimension.width, angleGroupDimension.y + angleGroupDimension.height);
+        cv.rectangle(src, point1, point2, [255, 0, 0, 255], 20);
+    }
+
+
+
+    // Placeholder for detecting perpendicular lines (L-shape)
+    // This requires more complex logic to analyze line angles and intersections
+    // ...
+
+    // Cleanup
+    gray.delete();
+    edges.delete();
+    lines.delete();
+
+    return src;
+}
+
+// Usage
+// Assuming 'src' is your source image
+detectLShape(src);
+
+
+
+
 
 let contoursColor = [];
 for (let i = 0; i < 10000; i++) {
@@ -244,31 +366,41 @@ function contours(src, mode, method) {
     // Convert to grayscale and apply threshold
     cv.cvtColor(intermediate, dstC1, cv.COLOR_RGBA2GRAY);
     cv.threshold(dstC1, dstC4, 120, 200, cv.THRESH_BINARY);
+    //let adaptiveBlockSize = 111;
+    //cv.adaptiveThreshold(dstC1, dstC4, 200, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, Number(adaptiveBlockSize), 2);
 
     let contours = new cv.MatVector();
     let hierarchy = new cv.Mat();
     cv.findContours(dstC4, contours, hierarchy, Number(mode), Number(method), { x: 0, y: 0 });
 
+    let nonSmallContours = 0;
     let rects = 0;
-    let areaThreshold = 1000;
-    let minRectWidth = 100;
-    let minRectHeight = 100;
+    let areaThreshold = 200;
+    let minRectLength = 20;
+    let colorContour = new cv.Scalar(0, 0, 255, 255); // Red color for contour
 
     for (let i = 0; i < contours.size(); ++i) {
         let contour = contours.get(i);
+        
+        // skip small contours
+        let contourArea = cv.contourArea(contour);
+        if (contourArea < 100) continue;
 
+        nonSmallContours++;
+
+        cv.drawContours(src, contours, i, colorContour, 10, cv.LINE_8, hierarchy);
+
+        // Approximate contour with accuracy proportional
         let epsilon = 0.02 * cv.arcLength(contour, true);
         let approx = new cv.Mat();
         cv.approxPolyDP(contour, approx, epsilon, true);
-
-        let colorContour = new cv.Scalar(0, 0, 255, 255); // Red color for contour
-        cv.drawContours(src, contours, i, colorContour, 10, cv.LINE_8, hierarchy);
     
+        // Only consider contours with 4 edges
         if (approx.rows === 4) {
             let contourArea = cv.contourArea(contour);
             let boundingRect = cv.boundingRect(contour);
     
-            if (contourArea > areaThreshold && boundingRect.width > minRectWidth && boundingRect.height > minRectHeight) {                
+            if (contourArea > areaThreshold && boundingRect.width > minRectLength && boundingRect.height > minRectLength) {                
 
                 // Draw the bounding rectangle
                 let colorRect = new cv.Scalar(0, 255, 0, 255); // Green color for bounding rectangle
@@ -283,7 +415,7 @@ function contours(src, mode, method) {
         approx.delete();
     }
 
-    info.innerHTML = `Total contours found: ${contours.size()} Rects: ${rects}`;
+    info.innerHTML = `Non small contours found: ${nonSmallContours} Rects: ${rects}`;
 
     // let testImage = new cv.Mat.zeros(height, width, cv.CV_8UC3);
     // let testColor = new cv.Scalar(0, 255, 0); // White color
