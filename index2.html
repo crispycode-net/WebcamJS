@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WebcamJS</title>
+    <link href="style.css" rel="stylesheet" />
+</head>
+
+<body>
+
+    <video id="video" muted autoplay playsinline style="display: none;"></video>
+
+    <div id="canvas-container" style="width: 100vw; background-color: red; display: grid; align-items: center; justify-items: center;">
+        <canvas id="canvasOutput" style="width: 100%; height: 100%; object-fit: contain; grid-column: 1; grid-row: 1;"></canvas>
+        <div id="focus-center" style="width: 15%; height: 25%; border: 1px solid white; border-radius: 6px; grid-column: 1; grid-row: 1"></div>
+    </div>
+
+    <div style="display: flex;align-items: center; gap: 8px;">
+        <h3 id="info"></h3>
+        <button id="restartButton" onclick="restart()" style="display: none;">Restart</button>
+    </div>
+
+    <canvas id="canvasOutput_1" style="width: 100%"></canvas>
+    <canvas id="canvasOutput_2"></canvas>
+    <canvas id="canvasOutput_3"></canvas>
+    <canvas id="canvasOutput_4"></canvas>
+    <canvas id="canvasOutput_5"></canvas>
+    <canvas id="canvasOutput_6"></canvas>
+    <canvas id="canvasOutput_7"></canvas>
+    <canvas id="canvasOutput_8"></canvas>
+    
+
+    <script src="cam2.js"></script>
+
+    <script>
+        var Module = {
+            wasmBinaryFile: 'build/wasm/opencv_js.wasm',
+            _main: function () { opencvIsReady(); }
+        };
+    </script>
+    <script async src="build/wasm/opencv.js"></script>
+    <script type="text/javascript" src="zxing-browser.min.js"></script>
+
+</body>
+
+</html>
