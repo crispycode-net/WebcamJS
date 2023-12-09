@@ -47,8 +47,9 @@ async function startCamera() {
 
     const constraints = {
         video: {
-            width: { ideal: sourceWidth },
-            height: { ideal: sourceHeight },
+            exact: 1.5,
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
             facingMode: 'environment'
         },
         audio: false,
@@ -98,9 +99,15 @@ function processVideo() {
     let centerMat = getMatCenter(src);
     cv.imshow("canvasOutput_1", centerMat);
 
-    readCode();
+    readCode(canvasOutput_1, "s1");
+
+    let enhancedMat = enhanceFocusArea(centerMat);
+    cv.imshow("canvasOutput_2", enhancedMat);
+
+    readCode(canvasOutput_2, "s2");
 
     centerMat.delete();
+    enhancedMat.delete();
 
     requestAnimationFrame(processVideo);
 }
@@ -113,11 +120,13 @@ function getMatCenter(src) {
     let container = document.getElementById('canvas-container');
     let containerRect = container.getBoundingClientRect();
 
+    let relativeTop = rect.top - containerRect.top;
+    let relativeLeft = rect.left - containerRect.left;
     let scaleX = sourceWidth / containerRect.width;
     let scaleY = sourceHeight / containerRect.height;
 
-    let focusCenterX = rect.left * scaleX;
-    let focusCenterY = rect.top * scaleY;
+    let focusCenterX = relativeLeft * scaleX;
+    let focusCenterY = relativeTop * scaleY;
     let focusCenterWidth = rect.width * scaleX;
     let focusCenterHeight = rect.height * scaleY;
 
@@ -125,21 +134,62 @@ function getMatCenter(src) {
     let cvRect = new cv.Rect(focusCenterX, focusCenterY, focusCenterWidth, focusCenterHeight);
     let roi = src.roi(cvRect);
 
-    return roi;
+    let zoomed = zoomIn(roi, 2);
+
+    roi.delete();    
+
+    return zoomed;
 }
 
-async function readCode() {
+function enhanceFocusArea(src) {
+
+    // Convert to Grayscale
+    let gray = new cv.Mat();
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+
+    // Step 2: Apply Adaptive Threshold
+    let dst = new cv.Mat();
+    let maxValue = 255;
+    let adaptiveMethod = cv.ADAPTIVE_THRESH_GAUSSIAN_C; // or cv.ADAPTIVE_THRESH_MEAN_C
+    let thresholdType = cv.THRESH_BINARY; // or cv.THRESH_BINARY_INV
+    let blockSize = 111; // It must be an odd number
+    let C = 4; // Constant subtracted from the mean or weighted sum
+
+    cv.adaptiveThreshold(gray, dst, maxValue, adaptiveMethod, thresholdType, blockSize, C);
+
+    // 'dst' is now a binary image after adaptive thresholding
+
+    gray.delete();
+
+    return dst;
+}
+
+function zoomIn(src, factor) {
+    
+    let dst = new cv.Mat();
+    let interpolation = cv.INTER_LINEAR;
+    let dsize = new cv.Size(src.cols * 2, src.rows * 2);
+    cv.resize(src, dst, dsize, 0, 0, interpolation);
+
+    return dst;
+}
+
+async function readCode(canvas, infoTxt) {
 
     try {
         const codeReader = new ZXingBrowser.BrowserDatamatrixCodeReader();
-        const result = await codeReader.decodeFromCanvas(canvasOutput_1);
+        const result = await codeReader.decodeFromCanvas(canvas);
 
         if (result) {
             codeFound = true;
-            info.innerHTML = `Code: ${result.text}`;
+            info.innerHTML = `Code: ${result.text} ${infoTxt}`;
+            info.style.display = '';
 
             let button = document.getElementById('restartButton');
             button.style.display = '';
+
+            let focusCenter = document.getElementById('focus-center');
+            focusCenter.style.border = '4px solid green';
         }
     } catch (error) { }    
 }
@@ -147,8 +197,13 @@ async function readCode() {
 function restart() {
     codeFound = false;
     info.innerHTML = ``;
+    info.style.display = 'none';
+
     let button = document.getElementById('restartButton');
     button.style.display = 'none';
+
+    let focusCenter = document.getElementById('focus-center');
+    focusCenter.style.border = '4px solid red';
 
     startCamera();
 }

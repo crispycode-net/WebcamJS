@@ -14,16 +14,16 @@
 
     <div id="canvas-container" style="width: 100vw; background-color: red; display: grid; align-items: center; justify-items: center;">
         <canvas id="canvasOutput" style="width: 100%; height: 100%; object-fit: contain; grid-column: 1; grid-row: 1;"></canvas>
-        <div id="focus-center" style="width: 15%; height: 25%; border: 1px solid white; border-radius: 6px; grid-column: 1; grid-row: 1"></div>
+        <div id="focus-center" style="z-index: 10;width: 12%; height: 7%; border: 4px solid red; border-radius: 6px; grid-column: 1; grid-row: 1"></div>
+
+        <div id="info" style="z-index: 10; display: none; background-color: white; padding: 4px; grid-column: 1; grid-row: 1;margin-top: -20%; border-radius: 4px"></div>
+        <button id="restartButton" onclick="restart()" style="z-index: 10; display: none; grid-column: 1; grid-row: 1;margin-top: 20%; padding: 7px;">Restart</button>
     </div>
 
-    <div style="display: flex;align-items: center; gap: 8px;">
-        <h3 id="info"></h3>
-        <button id="restartButton" onclick="restart()" style="display: none;">Restart</button>
-    </div>
 
-    <canvas id="canvasOutput_1" style="width: 100%"></canvas>
-    <canvas id="canvasOutput_2"></canvas>
+
+    <canvas id="canvasOutput_1" style="max-width: 100%; display: none;"></canvas>
+    <canvas id="canvasOutput_2" style="max-width: 100%; display: none;"></canvas>
     <canvas id="canvasOutput_3"></canvas>
     <canvas id="canvasOutput_4"></canvas>
     <canvas id="canvasOutput_5"></canvas>
